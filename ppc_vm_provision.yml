@@ -1,0 +1,53 @@
+---
+- name: Create a VM on Power PC Little Endian
+  hosts: powervc
+  gather_facts: true
+  vars:
+    pvc:
+      - name: vm1
+        flavor: 6c15cce7-0fe2-4c19-a575-bda0027acede
+        image: 94333b61-b751-4143-a177-cacdc7fa492d
+        group: group1
+        state: present
+
+      - name: vm2
+        flavor: 6c15cce7-0fe2-4c19-a575-bda0027acede
+        image: 94333b61-b751-4143-a177-cacdc7fa492d
+        group: group1
+        state: present
+   
+  tasks:
+  - name: Create an SSH Key Pair
+    os_keypair:
+      state: present
+      name: ansible-ssh-key
+      public_key_file: "{{ ansible_env.HOME }}/.ssh/id_rsa_pub"
+
+  - name: Create a VM instance
+    os_server: 
+      state: "{{ item.state}}"
+      name: "{{ item.name }}"
+      image: "{{ item.image }}"
+      flavor: "{{ item.flavor }}"
+      key_name: ansible-ssh-key
+      nics:
+        - net-name: Static_Prod_Network
+      meta:
+        hostname: "{{ item.name }}"
+        group: "{{ item.group }}"
+      loop: pvc
+      register: pvcvm
+
+
+  - name: Print VM IP address
+    debug:
+      var: pvcvm.openstack.public_v4
+
+  - name: Wait for response from port 22
+    wait_for:
+      host: "{{ pvcvm.openstack.public_v4 }}"
+      port: 22
+
+  - name: Add key to known hosts
+    shell: "ssh-keyscan -H {{ pvcvm.openstack.public_v4 }} >> ~/.ssh/known_hosts"
+
